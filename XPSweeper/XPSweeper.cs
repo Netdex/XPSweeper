@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using XPSweeper.Strategy;
 
 namespace XPSweeper
 {
@@ -125,12 +126,12 @@ namespace XPSweeper
 
         private void DoUpdate()
         {
-            if (!MFAlgorithm.IdentifyAdjMines(mfArr))
+            if (!MFNonAmbiguous.IdentifyAdjMines(mfArr))
             {
-                GfxBuf.Graphics.DrawString("DONE", DebugFont, Brushes.Green, 10, 50);
-                timer.Stop();
+                MFDeductive.DeduceMineLocation(mfArr);
+                GfxBuf.Graphics.DrawString("AMBIGUOUS", DebugFont, Brushes.Green, 10, 50);
             }
-            MFAlgorithm.ClearKnown(mfArr);
+            MFNonAmbiguous.ClearKnown(mfArr);
         }
 
         private void DoVisualization()
@@ -191,6 +192,15 @@ namespace XPSweeper
                         MouseOperations.MouseEvent(MouseOperations.MouseEventFlags.LeftUp);
                     }
                 }
+            }
+        }
+
+        private void btnReset_Click(object sender, EventArgs e)
+        {
+            for (int y = 0; y < BHeight; y++)
+            {
+                for (int x = 0; x < BWidth; x++)
+                    mfArr[x, y] = -1;
             }
         }
 
