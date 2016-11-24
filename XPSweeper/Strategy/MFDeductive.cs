@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace XPSweeper.Strategy
 {
@@ -22,19 +23,23 @@ namespace XPSweeper.Strategy
             {-1, -1, -1}
         };
 
-        public static void DeduceMineLocation(int[,] mfArr)
+        public static bool DeduceMineLocation(int[,] mfArr)
         {
+            bool f = false;
             for (int y = 0; y < mfArr.GetLength(1); y++)
             {
                 for (int x = 0; x < mfArr.GetLength(0); x++)
                 {
+                    // make sure tile is number tile
                     if (mfArr[x, y] <= 0) continue;
                     int adjMines = AdjacentCount(x, y, mfArr, NullKernel, x, y, -2);
+                    // make sure tile isn't already satisfied
                     if (mfArr[x, y] == adjMines) continue;
 
                     int adjMinesReq = mfArr[x, y] - adjMines;
                     int adjUnknown = AdjacentCount(x, y, mfArr, NullKernel, x, y, -1);
 
+                    // find all adjacent cells that are unknown
                     List<Point> unknownPoints = new List<Point>();
                     for (int i = 0; i < 8; i++)
                     {
@@ -49,23 +54,29 @@ namespace XPSweeper.Strategy
                     int[] permIndex = new int[adjMinesReq];
                     for (int i = 0; i < adjMinesReq; i++)
                         permIndex[i] = adjMinesReq - i - 1;
+                    // for all permutations of possible mine configurations
                     do
                     {
+                        // copy initial kernel configuration from mfArr
                         int[,] kernel = new int[3, 3];
                         for (int dy = 0; dy < 3; dy++)
                             for (int dx = 0; dx < 3; dx++)
                             {
                                 int augx = x + dx - 1;
                                 int augy = y + dy - 1;
-                                if (augx >= 0 && augx < mfArr.GetLength(0) && augy >= 0 && augy < mfArr.GetLength(1))
+                                if (augx >= 0 && augx < mfArr.GetLength(0) 
+                                    && augy >= 0 && augy < mfArr.GetLength(1))
                                     kernel[dx, dy] = mfArr[x + dx - 1, y + dy - 1];
                             }
 
+                        // put mines selected from permutation into kernel
                         for (int i = 0; i < adjMinesReq; i++)
                         {
                             Point up = unknownPoints[permIndex[i]];
                             kernel[up.X + 1, up.Y + 1] = -2;
                         }
+
+                        // set all other spots as kernel empty
                         for (int dy = 0; dy < 3; dy++)
                             for (int dx = 0; dx < 3; dx++)
                                 if (kernel[dx, dy] == -1)
@@ -75,6 +86,7 @@ namespace XPSweeper.Strategy
                             validPerms.Add(kernel);
                     } while (NextUniqueCombination(permIndex, adjUnknown));
 
+                    // combine all possible kernels together
                     int[,] meshKernel = new int[3, 3];
                     for (int dy = 0; dy < 3; dy++)
                         for (int dx = 0; dx < 3; dx++)
@@ -89,6 +101,7 @@ namespace XPSweeper.Strategy
                                 else meshKernel[dx, dy] = -9;
                             }
                     }
+                    // reflect certain deductions in mfArr
                     for (int dy = 0; dy < 3; dy++)
                         for (int dx = 0; dx < 3; dx++)
                         {
@@ -96,15 +109,21 @@ namespace XPSweeper.Strategy
                             int kcy = y + dy - 1;
                             if (kcx >= 0 && kcx < mfArr.GetLength(0) && kcy >= 0 && kcy < mfArr.GetLength(1))
                             {
-                                if (meshKernel[dx, dy] == -2)
+                                if (meshKernel[dx, dy] == -2 && mfArr[kcx, kcy] != -2)
+                                {
                                     mfArr[kcx, kcy] = -2;
-                                else if (meshKernel[dx, dy] == -3)
+                                    f = true;
+                                }
+                                else if (meshKernel[dx, dy] == -3 && mfArr[kcx, kcy] != -3)
+                                {
                                     mfArr[kcx, kcy] = -3;
+                                    f = true;
+                                }
                             }
                         }
                 }
             }
-
+            return f;
         }
 
         private static int SubstituteKernel(int x, int y, int[,] mfArr, int[,] kernel, int kx, int ky)

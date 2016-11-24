@@ -20,13 +20,14 @@ namespace XPSweeper
             InitializeComponent();
         }
 
-        
+
 
 
         private void XPSweeper_Load(object sender, EventArgs e)
         {
-            _Process = Process.GetProcessesByName(ProcessName).FirstOrDefault();
             DoInit();
+            lblDelay.Text = $"{timer.Interval} ms";
+            trackBarDelay.Value = timer.Interval;
         }
         private const string ProcessName = "WinMine__XP";
         private static readonly Point MagicPoint = new Point(9, 3);
@@ -59,18 +60,19 @@ namespace XPSweeper
         private const int PixelSize = 16;
         private Memory.RECT WindowLocation;
 
-        
-
         private void DoInit()
         {
+            _Process = Process.GetProcessesByName(ProcessName).FirstOrDefault();
             Memory.SetForegroundWindow(_Process.MainWindowHandle);
             Memory.RECT rect;
             Memory.GetWindowRect(_Process.MainWindowHandle, out rect);
+            Screen?.Dispose();
             Screen = new DirectBitmap(rect.Width, rect.Height);
             FocusRectangle = new Rectangle(
                    3 + 12, 112,
                    Screen.Width - 3 - 3 - 12 - 8,
                    Screen.Height - 112 - 8 - 3);
+            GfxBuf?.Dispose();
             GfxBuf = new DirectBitmap(Screen.Width, Screen.Height);
             DoCapture();
             BWidth = FocusRectangle.Width / PixelSize;
@@ -96,10 +98,10 @@ namespace XPSweeper
             {
                 for (int x = 0; x < BWidth; x++)
                 {
-                    if (mfArr[x, y] == -1 || mfArr[x,y] == -3)
+                    if (mfArr[x, y] == -1 || mfArr[x, y] == -3)
                     {
-                        int dx = FocusRectangle.X + x*PixelSize;
-                        int dy = FocusRectangle.Y + y*PixelSize;
+                        int dx = FocusRectangle.X + x * PixelSize;
+                        int dy = FocusRectangle.Y + y * PixelSize;
                         int ax = dx + MagicPoint.X;
                         int ay = dy + MagicPoint.Y;
 
@@ -107,15 +109,15 @@ namespace XPSweeper
                         for (int i = 0; i < Colors.GetLength(0); i++)
                         {
                             if (
-                                Screen.Bits[(ay*Screen.Width + ax)*4 + 0] == Colors[i, 0]
-                                && Screen.Bits[(ay*Screen.Width + ax)*4 + 1] == Colors[i, 1]
-                                && Screen.Bits[(ay*Screen.Width + ax)*4 + 2] == Colors[i, 2])
+                                Screen.Bits[(ay * Screen.Width + ax) * 4 + 0] == Colors[i, 0]
+                                && Screen.Bits[(ay * Screen.Width + ax) * 4 + 1] == Colors[i, 1]
+                                && Screen.Bits[(ay * Screen.Width + ax) * 4 + 2] == Colors[i, 2])
                             {
                                 id = i;
                                 break;
                             }
                         }
-                        if (id == 0 && Screen.Bits[(dy*Screen.Width + dx)*4 + 0] == 0xFF)
+                        if (id == 0 && Screen.Bits[(dy * Screen.Width + dx) * 4 + 0] == 0xFF)
                             id = -1;
 
                         mfArr[x, y] = id;
@@ -128,9 +130,17 @@ namespace XPSweeper
         {
             if (!MFNonAmbiguous.IdentifyAdjMines(mfArr))
             {
-                MFDeductive.DeduceMineLocation(mfArr);
-                GfxBuf.Graphics.DrawString("AMBIGUOUS", DebugFont, Brushes.Green, 10, 50);
+
+                if (!MFDeductive.DeduceMineLocation(mfArr))
+                {
+                    GfxBuf.Graphics.DrawString("AMBIGUOUS", DebugFont, Brushes.Red, 10, 50);
+                    btnStop_Click(null, null);
+                }
+                else
+                    GfxBuf.Graphics.DrawString("DEDUCTIVE", DebugFont, Brushes.Yellow, 10, 50);
             }
+            else
+                GfxBuf.Graphics.DrawString("NON-AMBIGUOUS", DebugFont, Brushes.Green, 10, 50);
             MFNonAmbiguous.ClearKnown(mfArr);
         }
 
@@ -144,9 +154,9 @@ namespace XPSweeper
                     int dy = FocusRectangle.Y + y * PixelSize;
 
                     GfxBuf.Graphics.FillRectangle(
-                        mfArr[x,y] == -2 ? Brushes.DarkRed : 
-                        mfArr[x,y] == -3 ? Brushes.Green : 
-                        Brushes.White, 
+                        mfArr[x, y] == -2 ? Brushes.DarkRed :
+                        mfArr[x, y] == -3 ? Brushes.Green :
+                        Brushes.White,
                         dx, dy, PixelSize, PixelSize);
                     GfxBuf.Graphics.DrawRectangle(Pens.Black, dx, dy, PixelSize, PixelSize);
                     string s;
@@ -169,7 +179,7 @@ namespace XPSweeper
                             break;
                     }
                     GfxBuf.Graphics.DrawString(s,
-                        DebugFont, mfArr[x,y] >= 0 ? VizBrushes[mfArr[x,y]] : Brushes.DarkGray, 
+                        DebugFont, mfArr[x, y] >= 0 ? VizBrushes[mfArr[x, y]] : Brushes.DarkGray,
                         dx + 3, dy + 1);
                 }
             }
@@ -197,11 +207,28 @@ namespace XPSweeper
 
         private void btnReset_Click(object sender, EventArgs e)
         {
-            for (int y = 0; y < BHeight; y++)
-            {
-                for (int x = 0; x < BWidth; x++)
-                    mfArr[x, y] = -1;
-            }
+            DoInit();
+            DoVisualization();
+        }
+
+        private void trackBarDelay_Scroll(object sender, EventArgs e)
+        {
+            timer.Interval = trackBarDelay.Value;
+            lblDelay.Text = $"{timer.Interval}ms";
+        }
+
+        private void btnStart_Click(object sender, EventArgs e)
+        {
+            timer.Start();
+            btnStart.Enabled = false;
+            btnStop.Enabled = true;
+        }
+
+        private void btnStop_Click(object sender, EventArgs e)
+        {
+            timer.Stop();
+            btnStart.Enabled = true;
+            btnStop.Enabled = false;
         }
 
         private void timer_Tick(object sender, EventArgs e)
